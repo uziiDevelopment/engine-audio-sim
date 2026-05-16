@@ -1,12 +1,12 @@
 use std::f64::consts::PI;
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::io::{stdout, Write};
 
 use rand::Rng;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use crossterm::event::{self, Event, KeyCode, KeyModifiers};
+use crossterm::event::{self, Event, KeyCode, KeyModifiers, KeyEventKind};
 use crossterm::terminal::{self, ClearType};
 use crossterm::{cursor, execute};
 
@@ -100,6 +100,8 @@ pub struct SharedEngineState {
     pub pressures: [AtomicU64; MAX_CYLINDERS],
     pub exhaust_flows: [AtomicU64; MAX_CYLINDERS],
     pub intake_flows: [AtomicU64; MAX_CYLINDERS],
+    pub rod_knock: AtomicBool,
+    pub piston_slap: AtomicBool,
 }
 
 impl SharedEngineState {
@@ -112,6 +114,8 @@ impl SharedEngineState {
             pressures: std::array::from_fn(|_| AtomicU64::new(ATMOSPHERIC_PRESSURE.to_bits())),
             exhaust_flows: std::array::from_fn(|_| AtomicU64::new(0f64.to_bits())),
             intake_flows: std::array::from_fn(|_| AtomicU64::new(0f64.to_bits())),
+            rod_knock: AtomicBool::new(false),
+            piston_slap: AtomicBool::new(false),
         }
     }
 }
@@ -143,6 +147,10 @@ pub struct EngineSolver {
     prev_cycle_angle: [f64; MAX_CYLINDERS],
     phase_offsets: [f64; MAX_CYLINDERS],
     
+    // Damage impact envelopes
+    rod_knock_env: [f64; MAX_CYLINDERS],
+    piston_slap_env: [f64; MAX_CYLINDERS],
+    
     pub crank_angle: f64,
     pub angular_velocity: f64,
 }
@@ -158,6 +166,10 @@ impl EngineSolver {
 
             cylinder_pressure: [ATMOSPHERIC_PRESSURE; MAX_CYLINDERS],
             prev_volume: [None; MAX_CYLINDERS], prev_cycle_angle: [0.0; MAX_CYLINDERS], phase_offsets: [0.0; MAX_CYLINDERS],
+            
+            rod_knock_env: [0.0; MAX_CYLINDERS],
+            piston_slap_env: [0.0; MAX_CYLINDERS],
+            
             crank_angle: 0.0, angular_velocity: 800.0 * (2.0 * PI / 60.0),
         }
     }
@@ -182,28 +194,26 @@ impl EngineSolver {
             self.cylinder_pressure[i] = ATMOSPHERIC_PRESSURE;
             self.prev_volume[i] = None;
             self.prev_cycle_angle[i] = 0.0;
-        }
-
-        for i in 0..MAX_CYLINDERS {
-            if i < self.num_cylinders {
-                self.phase_offsets[i] = profile.phases[i] * PI;
-            } else {
-                self.phase_offsets[i] = 0.0;
-            }
+            self.rod_knock_env[i] = 0.0;
+            self.piston_slap_env[i] = 0.0;
+            self.phase_offsets[i] = if i < self.num_cylinders { profile.phases[i] * PI } else { 0.0 };
         }
     }
 
-    pub fn step(&mut self, dt: f64, throttle: f64) -> ([f64; MAX_CYLINDERS], [f64; MAX_CYLINDERS]) {
+    pub fn step(&mut self, dt: f64, throttle: f64, rod_knock: bool, piston_slap: bool) -> ([f64; MAX_CYLINDERS], [f64; MAX_CYLINDERS], f64, f64) {
         let r = self.crank_radius;
         let l = self.rod_length;
         let mut total_combustion_torque = 0.0;
+        
+        let mut total_rk_burst = 0.0;
+        let mut total_ps_burst = 0.0;
+        
         let mut exhaust_flows = [0.0; MAX_CYLINDERS];
         let mut intake_flows = [0.0; MAX_CYLINDERS];
         let mut total_inertia = self.base_crank_inertia * self.num_cylinders as f64 * self.displacement_scale;
         let mut rng = rand::thread_rng();
 
         let rev_limit_rads = self.rev_limit * (2.0 * PI / 60.0);
-        
         let intake_manifold_pressure = ATMOSPHERIC_PRESSURE * (0.2 + throttle * 0.8);
         
         let intake_flow_rate = 1.0 - (-dt / 0.002).exp();
@@ -221,6 +231,7 @@ impl EngineSolver {
             let mut cycle_angle = theta % (4.0 * PI);
             if cycle_angle < 0.0 { cycle_angle += 4.0 * PI; }
 
+            // --- 1. GAS DYNAMICS ---
             if let Some(prev_vol) = self.prev_volume[i] {
                 self.cylinder_pressure[i] *= (prev_vol / volume).powf(1.4);
             }
@@ -248,7 +259,10 @@ impl EngineSolver {
                 exhaust_flows[i] = raw_pulse + turbulence;
             }
 
-            if self.prev_cycle_angle[i] < 2.0 * PI && cycle_angle >= 2.0 * PI {
+            let prev_ca = self.prev_cycle_angle[i];
+            
+            // Combustion pulse
+            if prev_ca < 2.0 * PI && cycle_angle >= 2.0 * PI {
                 if self.angular_velocity < rev_limit_rads {
                     let jitter = rng.gen_range(0.95..1.05); 
                     let combustion_multiplier = 1.0 + (20.0 * (0.1 + throttle * 0.9) * jitter);
@@ -256,6 +270,38 @@ impl EngineSolver {
                 }
             }
 
+            // --- 2. MECHANICAL DAMAGE EXCITERS ---
+            
+            // Ultra-fast decay to create an acoustic "strike" burst (not a tone!)
+            self.rod_knock_env[i] *= (-dt / 0.002).exp();
+            self.piston_slap_env[i] *= (-dt / 0.001).exp();
+            
+            let crossed_0 = prev_ca > 3.0 * PI && cycle_angle < 1.0 * PI;
+            let crossed_pi = prev_ca < PI && cycle_angle >= PI;
+            let crossed_2pi = prev_ca < 2.0 * PI && cycle_angle >= 2.0 * PI;
+            let crossed_3pi = prev_ca < 3.0 * PI && cycle_angle >= 3.0 * PI;
+            
+            if rod_knock {
+                // Violent knock under peak combustion load, lighter knock on overlap
+                if crossed_2pi { 
+                    self.rod_knock_env[i] = 1.0 + throttle * 1.5; 
+                } else if crossed_0 { 
+                    self.rod_knock_env[i] = 0.4 + throttle * 0.5; 
+                }
+            }
+            
+            if piston_slap {
+                // Rattles continuously on direction shift (clearance take-up)
+                if crossed_0 || crossed_pi || crossed_2pi || crossed_3pi { 
+                    self.piston_slap_env[i] = 0.6 + throttle * 0.4;
+                }
+            }
+            
+            // Output pure excitation bursts (these get passed through the block resonators)
+            total_rk_burst += self.rod_knock_env[i] * rng.gen_range(-1.0..1.0);
+            total_ps_burst += self.piston_slap_env[i] * rng.gen_range(-1.0..1.0);
+
+            // --- 3. STATE UPDATES ---
             self.prev_volume[i] = Some(volume);
             self.prev_cycle_angle[i] = cycle_angle;
 
@@ -278,11 +324,66 @@ impl EngineSolver {
         self.crank_angle += self.angular_velocity * dt;
         if self.crank_angle > 2000.0 * PI { self.crank_angle -= 2000.0 * PI; }
 
-        (exhaust_flows, intake_flows)
+        (exhaust_flows, intake_flows, total_rk_burst, total_ps_burst)
     }
 }
 
 // === 2. ACOUSTIC FILTERS ===
+
+// Modulates a noise burst into a specific metallic resonance
+struct DamageResonator {
+    ir: Vec<f64>, history: Vec<f64>, ptr: usize,
+}
+impl DamageResonator {
+    fn new(sample_rate: f64, base_freq: f64, decay_speed: f64, length: usize, is_knock: bool) -> Self {
+        let mut ir = vec![0.0; length];
+        let mut rng = rand::thread_rng();
+        let mut lp = 0.0;
+        let mut energy = 0.0;
+        
+        for i in 0..length {
+            let envelope = (-(i as f64) / decay_speed).exp();
+            let t = i as f64 / sample_rate;
+            
+            let wave = if is_knock {
+                // Heavy, clunky metal block harmonics
+                (t * base_freq * 2.0 * PI).cos() +
+                (t * base_freq * 1.618 * 2.0 * PI).cos() * 0.5 +
+                (t * base_freq * 2.345 * 2.0 * PI).cos() * 0.25 +
+                rng.gen_range(-1.0..1.0) * 0.1 
+            } else {
+                // Hollow, tinny aluminum clatter
+                (t * base_freq * 2.0 * PI).cos() +
+                (t * base_freq * 1.32 * 2.0 * PI).cos() * 0.5 +
+                rng.gen_range(-1.0..1.0) * 0.8 
+            };
+            
+            lp += 0.5 * (wave * envelope - lp);
+            ir[i] = lp;
+            energy += lp.abs();
+        }
+        
+        // Normalize IR to output a stable volume level
+        if energy > 0.0 {
+            let scale = 20.0 / energy; 
+            for val in ir.iter_mut() { *val *= scale; }
+        }
+        
+        Self { ir, history: vec![0.0; length], ptr: 0 }
+    }
+    fn process(&mut self, input: f64) -> f64 {
+        self.history[self.ptr] = input;
+        let mut sum = 0.0;
+        let len = self.ir.len();
+        for i in 0..len {
+            let buf_idx = (self.ptr + len - i) % len;
+            sum += self.history[buf_idx] * self.ir[i];
+        }
+        self.ptr = (self.ptr + 1) % len;
+        sum
+    }
+}
+
 struct ConvolutionFilter {
     ir: Vec<f64>, history: Vec<f64>, ptr: usize,
 }
@@ -357,6 +458,10 @@ fn run_audio_stream(state: Arc<SharedEngineState>) -> cpal::Stream {
     let mut exhaust_pipe = ConvolutionFilter::new(sample_rate, 150.0, 120.0, 1024);
     let mut intake_box = ConvolutionFilter::new(sample_rate, 240.0, 15.0, 512);
     
+    // Damage resonators (Deep knock & tinny clack)
+    let mut rk_resonator = DamageResonator::new(sample_rate, 450.0, 1500.0, 2048, true);
+    let mut ps_resonator = DamageResonator::new(sample_rate, 1800.0, 400.0, 1024, false);
+    
     let mut agc = AutoGain::new();
     let mut dc_block = DcBlocker::new();
     let dt = 1.0 / sample_rate;
@@ -385,12 +490,14 @@ fn run_audio_stream(state: Arc<SharedEngineState>) -> cpal::Stream {
 
             let profile = &PROFILES[target_profile];
             let throttle = f64::from_bits(state.throttle.load(Ordering::Relaxed));
+            let rk_active = state.rod_knock.load(Ordering::Relaxed);
+            let ps_active = state.piston_slap.load(Ordering::Relaxed);
             
             let mut last_ex = [0.0; MAX_CYLINDERS];
             let mut last_in = [0.0; MAX_CYLINDERS];
 
             for frame in data.chunks_mut(channels) {
-                let (raw_exhausts, raw_intakes) = engine.step(dt, throttle);
+                let (raw_exhausts, raw_intakes, rk_burst, ps_burst) = engine.step(dt, throttle, rk_active, ps_active);
                 
                 last_ex = raw_exhausts;
                 last_in = raw_intakes;
@@ -406,15 +513,23 @@ fn run_audio_stream(state: Arc<SharedEngineState>) -> cpal::Stream {
                 let ex_convolved = exhaust_pipe.process(mixed_exhaust);
                 let in_convolved = intake_box.process(mixed_intake);
                 
+                // Excite the metal acoustic resonators
+                let rk_sound = rk_resonator.process(rk_burst);
+                let ps_sound = ps_resonator.process(ps_burst);
+                
                 let drive = 1.5 + (throttle * 4.0); 
                 let intake_vol = 0.3 + (throttle * 0.7); 
                 
                 let final_engine_mix = ex_convolved + (in_convolved * intake_vol);
                 let blocked = dc_block.process(final_engine_mix);
                 
+                // Distort ONLY the engine cycle block, not the impact knocks
                 let overdriven = (blocked * drive).tanh() / drive.tanh();
                 
-                let final_mix = overdriven * 0.8;
+                // Mix in the pristine metallic sounds on top of the compressed engine noise
+                let final_mix = (overdriven * 0.7) + (rk_sound * 1.5) + (ps_sound * 0.8);
+                
+                // AGC handles dynamic limiting (which mimics a real microphone heavily ducking on loud rod-knock impacts)
                 let normalized = agc.process(final_mix);
                 
                 let sample_f32 = (normalized * 0.8).clamp(-1.0, 1.0) as f32;
@@ -456,27 +571,38 @@ fn main() {
 
         if event::poll(Duration::from_millis(5)).unwrap() {
             if let Event::Key(key) = event::read().unwrap() {
-                match key.code {
-                    KeyCode::Char('w') | KeyCode::Char('W') => target_throttle = 1.0,
-                    KeyCode::Up => {
-                        let mut p = state.profile_idx.load(Ordering::Relaxed);
-                        if p < PROFILES.len() - 1 { p += 1; state.profile_idx.store(p, Ordering::Relaxed); }
+                // FIXED: Prevent "goes up in twos" by ignoring KeyEventKind::Release
+                if key.kind == KeyEventKind::Press {
+                    match key.code {
+                        KeyCode::Char('w') | KeyCode::Char('W') => target_throttle = 1.0,
+                        KeyCode::Char('r') | KeyCode::Char('R') => {
+                            let current = state.rod_knock.load(Ordering::Relaxed);
+                            state.rod_knock.store(!current, Ordering::Relaxed);
+                        }
+                        KeyCode::Char('p') | KeyCode::Char('P') => {
+                            let current = state.piston_slap.load(Ordering::Relaxed);
+                            state.piston_slap.store(!current, Ordering::Relaxed);
+                        }
+                        KeyCode::Up => {
+                            let mut p = state.profile_idx.load(Ordering::Relaxed);
+                            if p < PROFILES.len() - 1 { p += 1; state.profile_idx.store(p, Ordering::Relaxed); }
+                        }
+                        KeyCode::Down => {
+                            let mut p = state.profile_idx.load(Ordering::Relaxed);
+                            if p > 0 { p -= 1; state.profile_idx.store(p, Ordering::Relaxed); }
+                        }
+                        KeyCode::Right => {
+                            let d = (f64::from_bits(state.displacement.load(Ordering::Relaxed)) * 1.1).min(10.0);
+                            state.displacement.store(d.to_bits(), Ordering::Relaxed);
+                        }
+                        KeyCode::Left => {
+                            let d = (f64::from_bits(state.displacement.load(Ordering::Relaxed)) / 1.1).max(0.1);
+                            state.displacement.store(d.to_bits(), Ordering::Relaxed);
+                        }
+                        KeyCode::Char('q') | KeyCode::Esc => break 'main_loop,
+                        KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => break 'main_loop,
+                        _ => {}
                     }
-                    KeyCode::Down => {
-                        let mut p = state.profile_idx.load(Ordering::Relaxed);
-                        if p > 0 { p -= 1; state.profile_idx.store(p, Ordering::Relaxed); }
-                    }
-                    KeyCode::Right => {
-                        let d = (f64::from_bits(state.displacement.load(Ordering::Relaxed)) * 1.1).min(10.0);
-                        state.displacement.store(d.to_bits(), Ordering::Relaxed);
-                    }
-                    KeyCode::Left => {
-                        let d = (f64::from_bits(state.displacement.load(Ordering::Relaxed)) / 1.1).max(0.1);
-                        state.displacement.store(d.to_bits(), Ordering::Relaxed);
-                    }
-                    KeyCode::Char('q') | KeyCode::Esc => break 'main_loop,
-                    KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => break 'main_loop,
-                    _ => {}
                 }
             }
         } else {
@@ -498,6 +624,11 @@ fn main() {
         write!(stdout, "[ W ]          : Rev Throttle\r\n").unwrap();
         write!(stdout, "[ Up/Down ]    : Profile       ({}/{}) {}\r\n", p_idx + 1, PROFILES.len(), profile.name).unwrap();
         write!(stdout, "[ Left/Right ] : Displacement  ({:.2}x)   \r\n", current_disp).unwrap();
+        
+        let rk_status = if state.rod_knock.load(Ordering::Relaxed) { "ON " } else { "OFF" };
+        let ps_status = if state.piston_slap.load(Ordering::Relaxed) { "ON " } else { "OFF" };
+        write!(stdout, "[ R ]          : Toggle Rod Knock    [{}]\r\n", rk_status).unwrap();
+        write!(stdout, "[ P ]          : Toggle Piston Slap  [{}]\r\n", ps_status).unwrap();
         write!(stdout, "[ Q / ESC ]    : Quit\r\n\n").unwrap();
 
         let rev_lim = profile.rev_limit;
