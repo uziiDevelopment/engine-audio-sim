@@ -25,68 +25,83 @@ pub struct EngineProfile {
     pub intake_res: f64,
     pub intake_decay: f64,
     pub rev_limit: f64,
+    pub limiter_drop_rpm: f64, 
+    pub vtec_rpm: f64,         
+    pub vtec_multiplier: f64,  
     pub header_delay_base: f64,
     pub header_delay_spread: f64,
     pub bank_delay_offset: f64,
     pub idle_rpm: f64,
 }
 
-pub const PROFILES: [EngineProfile; 7] = [
+pub const PROFILES: [EngineProfile; 8] = [
     EngineProfile {
         name: "Inline 4 (Tuner)",
         cylinders: 4,
         phases: [0.0, 1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
         exhaust_res: 180.0, exhaust_decay: 80.0, intake_res: 200.0, intake_decay: 15.0,
-        rev_limit: 7500.0, header_delay_base: 1.0, header_delay_spread: 0.5, bank_delay_offset: 0.0, idle_rpm: 900.0,
+        rev_limit: 7500.0, limiter_drop_rpm: 150.0, vtec_rpm: 20000.0, vtec_multiplier: 1.0, 
+        header_delay_base: 1.0, header_delay_spread: 0.5, bank_delay_offset: 0.0, idle_rpm: 900.0,
     },
     EngineProfile {
         name: "Inline 6 (2JZ)",
         cylinders: 6,
         phases: [0.0, 0.6666, 1.3333, 2.0, 2.6666, 3.3333, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
         exhaust_res: 220.0, exhaust_decay: 100.0, intake_res: 240.0, intake_decay: 20.0,
-        rev_limit: 8000.0, header_delay_base: 1.2, header_delay_spread: 0.3, bank_delay_offset: 0.0, idle_rpm: 800.0,
+        rev_limit: 8000.0, limiter_drop_rpm: 200.0, vtec_rpm: 20000.0, vtec_multiplier: 1.0, 
+        header_delay_base: 1.2, header_delay_spread: 0.3, bank_delay_offset: 0.0, idle_rpm: 800.0,
     },
     EngineProfile {
         name: "V8 Cross-Plane (Muscle)",
         cylinders: 8,
         phases: [0.0, 0.5, 1.0, 1.5, 2.5, 2.0, 3.5, 3.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
         exhaust_res: 130.0, exhaust_decay: 120.0, intake_res: 160.0, intake_decay: 15.0,
-        rev_limit: 6500.0, header_delay_base: 2.0, header_delay_spread: 1.5, bank_delay_offset: 1.2, idle_rpm: 700.0,
+        rev_limit: 6500.0, limiter_drop_rpm: 200.0, vtec_rpm: 20000.0, vtec_multiplier: 1.0, 
+        header_delay_base: 2.0, header_delay_spread: 1.5, bank_delay_offset: 1.2, idle_rpm: 700.0,
     },
     EngineProfile {
         name: "V8 Flat-Plane (Supercar)",
         cylinders: 8,
         phases: [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
         exhaust_res: 280.0, exhaust_decay: 140.0, intake_res: 180.0, intake_decay: 18.0,
-        rev_limit: 8500.0, header_delay_base: 0.8, header_delay_spread: 0.2, bank_delay_offset: 0.8, idle_rpm: 1000.0,
+        rev_limit: 8500.0, limiter_drop_rpm: 120.0, vtec_rpm: 20000.0, vtec_multiplier: 1.0, 
+        header_delay_base: 0.8, header_delay_spread: 0.2, bank_delay_offset: 0.8, idle_rpm: 1000.0,
     },
     EngineProfile {
         name: "V10 (LFA-style)",
         cylinders: 10,
         phases: [0.0, 0.4, 0.8, 1.2, 1.6, 2.0, 2.4, 2.8, 3.2, 3.6, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
         exhaust_res: 340.0, exhaust_decay: 150.0, intake_res: 140.0, intake_decay: 25.0,
-        rev_limit: 9000.0, header_delay_base: 0.5, header_delay_spread: 0.15, bank_delay_offset: 0.4, idle_rpm: 1000.0,
+        rev_limit: 9000.0, limiter_drop_rpm: 100.0, vtec_rpm: 20000.0, vtec_multiplier: 1.0, 
+        header_delay_base: 0.5, header_delay_spread: 0.15, bank_delay_offset: 0.4, idle_rpm: 1000.0,
     },
     EngineProfile {
         name: "V12 (SVJ-style)",
         cylinders: 12,
         phases: [0.0, 0.3333, 0.6666, 1.0, 1.3333, 1.6666, 2.0, 2.3333, 2.6666, 3.0, 3.3333, 3.6666, 0.0, 0.0, 0.0, 0.0],
         exhaust_res: 380.0, exhaust_decay: 160.0, intake_res: 150.0, intake_decay: 30.0,
-        rev_limit: 8700.0, header_delay_base: 0.4, header_delay_spread: 0.1, bank_delay_offset: 0.3, idle_rpm: 950.0,
+        rev_limit: 8700.0, limiter_drop_rpm: 100.0, vtec_rpm: 20000.0, vtec_multiplier: 1.0, 
+        header_delay_base: 0.4, header_delay_spread: 0.1, bank_delay_offset: 0.3, idle_rpm: 950.0,
     },
     EngineProfile {
         name: "V6 1.6L (2026 F1)",
         cylinders: 6,
         phases: [0.0, 0.6666, 1.3333, 2.0, 2.6666, 3.3333, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-        exhaust_res: 550.0,   
-        exhaust_decay: 35.0,  
-        intake_res: 380.0, 
-        intake_decay: 12.0,
-        rev_limit: 12500.0,   
-        header_delay_base: 0.1, 
-        header_delay_spread: 0.02, 
-        bank_delay_offset: 0.05, 
-        idle_rpm: 3500.0,     
+        exhaust_res: 550.0, exhaust_decay: 35.0, intake_res: 380.0, intake_decay: 12.0,
+        rev_limit: 12500.0, limiter_drop_rpm: 50.0, vtec_rpm: 20000.0, vtec_multiplier: 1.0, 
+        header_delay_base: 0.1, header_delay_spread: 0.02, bank_delay_offset: 0.05, idle_rpm: 3500.0,     
+    },
+    EngineProfile {
+        name: "Inline 4 (K20 Type R)",
+        cylinders: 4,
+        phases: [0.0, 1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        exhaust_res: 185.0, exhaust_decay: 55.0, 
+        intake_res: 300.0, intake_decay: 25.0,   
+        rev_limit: 8400.0, 
+        limiter_drop_rpm: 60.0,  
+        vtec_rpm: 4000.0,        
+        vtec_multiplier: 1.6,    
+        header_delay_base: 0.7, header_delay_spread: 0.1, bank_delay_offset: 0.0, idle_rpm: 900.0,
     }
 ];
 
@@ -103,6 +118,8 @@ pub struct SharedEngineState {
     pub rod_knock: AtomicBool,
     pub piston_slap: AtomicBool,
     pub limiter_active: AtomicBool,
+    pub vtec_active: AtomicBool,
+    pub dyno_load: AtomicBool, 
 }
 
 impl SharedEngineState {
@@ -110,7 +127,7 @@ impl SharedEngineState {
         Self {
             throttle: AtomicU64::new(0f64.to_bits()),
             rpm: AtomicU64::new(0f64.to_bits()),
-            profile_idx: AtomicUsize::new(6), // Boot up in the F1 Profile
+            profile_idx: AtomicUsize::new(7), 
             displacement: AtomicU64::new(1.0_f64.to_bits()),
             pressures: std::array::from_fn(|_| AtomicU64::new(ATMOSPHERIC_PRESSURE.to_bits())),
             exhaust_flows: std::array::from_fn(|_| AtomicU64::new(0f64.to_bits())),
@@ -118,11 +135,13 @@ impl SharedEngineState {
             rod_knock: AtomicBool::new(false),
             piston_slap: AtomicBool::new(false),
             limiter_active: AtomicBool::new(false),
+            vtec_active: AtomicBool::new(false),
+            dyno_load: AtomicBool::new(true), 
         }
     }
 }
 
-// === 1. BULLETPROOF 4-STROKE PHYSICS ENGINE ===
+// === 1. KINEMATIC ENGINE PHYSICS (Restored for pristine audio quality) ===
 
 pub struct EngineSolver {
     pub base_crank_radius: f64,
@@ -136,9 +155,12 @@ pub struct EngineSolver {
     pub displacement_scale: f64,
     pub profile_idx: usize,
     pub rev_limit: f64,
+    pub limiter_drop_rpm: f64,
+    pub vtec_rpm: f64,
+    pub vtec_multiplier: f64,
     pub idle_rpm: f64,
     
-    pub rev_limiter_active: bool, // Track the hysteresis state
+    pub rev_limiter_active: bool,
 
     crank_radius: f64,
     rod_length: f64,
@@ -147,11 +169,11 @@ pub struct EngineSolver {
     clearance_volume: f64,
 
     pub cylinder_pressure: [f64; MAX_CYLINDERS],
+    pub unburnt_fuel: [f64; MAX_CYLINDERS], // Tracks fuel for Spark Cut Pops!
     prev_volume: [Option<f64>; MAX_CYLINDERS],
     prev_cycle_angle: [f64; MAX_CYLINDERS],
     phase_offsets: [f64; MAX_CYLINDERS],
     
-    // Damage impact envelopes
     rod_knock_env: [f64; MAX_CYLINDERS],
     piston_slap_env: [f64; MAX_CYLINDERS],
     
@@ -163,17 +185,17 @@ impl EngineSolver {
     pub fn new() -> Self {
         Self {
             base_crank_radius: 0.04, base_rod_length: 0.13, base_crank_inertia: 0.15,
-            base_piston_mass: 0.4, base_bore: 0.08, compression_ratio: 9.0,
+            base_piston_mass: 0.4, base_bore: 0.08, compression_ratio: 10.5, 
             num_cylinders: 8, displacement_scale: 1.0, profile_idx: 999,
-            rev_limit: 8000.0, idle_rpm: 1000.0, rev_limiter_active: false,
+            rev_limit: 8000.0, limiter_drop_rpm: 250.0, vtec_rpm: 20000.0, vtec_multiplier: 1.0, 
+            idle_rpm: 1000.0, rev_limiter_active: false,
             crank_radius: 0.0, rod_length: 0.0, piston_mass: 0.0, piston_area: 0.0, clearance_volume: 0.0,
 
             cylinder_pressure: [ATMOSPHERIC_PRESSURE; MAX_CYLINDERS],
+            unburnt_fuel: [0.0; MAX_CYLINDERS],
             prev_volume: [None; MAX_CYLINDERS], prev_cycle_angle: [0.0; MAX_CYLINDERS], phase_offsets: [0.0; MAX_CYLINDERS],
             
-            rod_knock_env: [0.0; MAX_CYLINDERS],
-            piston_slap_env: [0.0; MAX_CYLINDERS],
-            
+            rod_knock_env: [0.0; MAX_CYLINDERS], piston_slap_env: [0.0; MAX_CYLINDERS],
             crank_angle: 0.0, angular_velocity: 800.0 * (2.0 * PI / 60.0),
         }
     }
@@ -183,6 +205,9 @@ impl EngineSolver {
         self.num_cylinders = profile.cylinders;
         self.displacement_scale = scale;
         self.rev_limit = profile.rev_limit;
+        self.limiter_drop_rpm = profile.limiter_drop_rpm;
+        self.vtec_rpm = profile.vtec_rpm;
+        self.vtec_multiplier = profile.vtec_multiplier;
         self.idle_rpm = profile.idle_rpm;
         self.rev_limiter_active = false;
 
@@ -197,6 +222,7 @@ impl EngineSolver {
 
         for i in 0..MAX_CYLINDERS {
             self.cylinder_pressure[i] = ATMOSPHERIC_PRESSURE;
+            self.unburnt_fuel[i] = 0.0;
             self.prev_volume[i] = None;
             self.prev_cycle_angle[i] = 0.0;
             self.rod_knock_env[i] = 0.0;
@@ -205,7 +231,7 @@ impl EngineSolver {
         }
     }
 
-    pub fn step(&mut self, dt: f64, throttle: f64, rod_knock: bool, piston_slap: bool) -> ([f64; MAX_CYLINDERS], [f64; MAX_CYLINDERS], f64, f64) {
+    pub fn step(&mut self, dt: f64, throttle: f64, rod_knock: bool, piston_slap: bool, load_active: bool) -> ([f64; MAX_CYLINDERS], [f64; MAX_CYLINDERS], f64, f64, bool) {
         let r = self.crank_radius;
         let l = self.rod_length;
         let mut total_combustion_torque = 0.0;
@@ -215,12 +241,11 @@ impl EngineSolver {
         
         let mut exhaust_flows = [0.0; MAX_CYLINDERS];
         let mut intake_flows = [0.0; MAX_CYLINDERS];
-        let mut total_inertia = self.base_crank_inertia * self.num_cylinders as f64 * self.displacement_scale;
         let mut rng = rand::thread_rng();
 
+        // REV LIMITER LOGIC
         let rev_limit_rads = self.rev_limit * (2.0 * PI / 60.0);
-        // Hysteresis calculation: Must drop 250 RPM to re-engage combustion
-        let bounce_drop_rads = 250.0 * (2.0 * PI / 60.0);
+        let bounce_drop_rads = self.limiter_drop_rpm * (2.0 * PI / 60.0);
         
         if self.angular_velocity > rev_limit_rads {
             self.rev_limiter_active = true;
@@ -228,10 +253,23 @@ impl EngineSolver {
             self.rev_limiter_active = false;
         }
 
+        // VTEC LOGIC
+        let is_vtec = self.angular_velocity > self.vtec_rpm * (2.0 * PI / 60.0);
+        let vtec_mod = if is_vtec { self.vtec_multiplier } else { 1.0 };
+
         let intake_manifold_pressure = ATMOSPHERIC_PRESSURE * (0.2 + throttle * 0.8);
         
-        let intake_flow_rate = 1.0 - (-dt / 0.002).exp();
-        let exhaust_flow_rate = 1.0 - (-dt / 0.0005).exp();
+        let intake_flow_rate = 1.0 - (-dt / (0.002 / vtec_mod)).exp();
+        let exhaust_flow_rate = 1.0 - (-dt / (0.0005 / vtec_mod)).exp();
+
+        // SIMULATED LOAD (Fixes the hyper-revving issue)
+        let mut base_inertia = self.base_crank_inertia * self.num_cylinders as f64 * self.displacement_scale;
+        let mut load_drag = 0.0;
+        if load_active {
+            base_inertia += 1.5 * self.displacement_scale; // Mass of drivetrain
+            load_drag = -0.00025 * self.angular_velocity.powi(2) * self.displacement_scale; // High speed wind resistance
+        }
+        let total_inertia = base_inertia;
 
         for i in 0..self.num_cylinders {
             let theta = self.crank_angle + self.phase_offsets[i];
@@ -261,33 +299,48 @@ impl EngineSolver {
                 let raw_suck = flow * 0.00001; 
                 let turbulence = raw_suck.abs() * 0.8 * rng.gen_range(-1.0..1.0); 
                 intake_flows[i] = raw_suck + turbulence;
+
+                // Accumulate fuel for the spark cut!
+                if throttle > 0.05 {
+                    self.unburnt_fuel[i] += throttle * dt;
+                }
             }
+
+            let mut pop_burst = 0.0;
 
             if is_exhaust {
                 let diff = self.cylinder_pressure[i] - ATMOSPHERIC_PRESSURE;
                 let flow = diff * exhaust_flow_rate;
                 self.cylinder_pressure[i] -= flow;
 
+                // SPARK CUT POP: If fuel is in the cylinder during the exhaust stroke, ignite it in the pipe!
+                if self.unburnt_fuel[i] > 0.0001 {
+                    pop_burst += self.unburnt_fuel[i] * 120.0 * rng.gen_range(-1.0..1.0); // Explosive burst
+                    self.unburnt_fuel[i] = 0.0; // Consume the fuel
+                }
+
                 let raw_pulse = flow * 0.00001;
                 let turbulence = raw_pulse.abs() * 0.5 * rng.gen_range(-1.0..1.0);
-                exhaust_flows[i] = raw_pulse + turbulence;
+                exhaust_flows[i] = raw_pulse + turbulence + pop_burst;
             }
 
             let prev_ca = self.prev_cycle_angle[i];
             
-            // Combustion pulse
+            // --- 2. COMBUSTION PULSE ---
             if prev_ca < 2.0 * PI && cycle_angle >= 2.0 * PI {
-                // Now respects the bouncing hysteresis loop instead of a hard cut!
                 if !self.rev_limiter_active {
                     let jitter = rng.gen_range(0.95..1.05); 
-                    let combustion_multiplier = 1.0 + (20.0 * (0.1 + throttle * 0.9) * jitter);
+                    let combustion_multiplier = 1.0 + (20.0 * (0.1 + throttle * 0.9) * jitter * vtec_mod);
                     self.cylinder_pressure[i] *= combustion_multiplier;
+                    
+                    // Fuel was burnt successfully, reset tracker
+                    self.unburnt_fuel[i] = 0.0;
                 }
+                // NOTE: If rev limiter IS active, we don't multiply pressure (no spark), 
+                // and the fuel stays in the unburnt_fuel tracker to be popped on the exhaust stroke!
             }
 
-            // --- 2. MECHANICAL DAMAGE EXCITERS ---
-            
-            // Ultra-fast decay to create an acoustic "strike" burst (not a tone!)
+            // --- 3. MECHANICAL DAMAGE EXCITERS ---
             self.rod_knock_env[i] *= (-dt / 0.002).exp();
             self.piston_slap_env[i] *= (-dt / 0.001).exp();
             
@@ -297,161 +350,103 @@ impl EngineSolver {
             let crossed_3pi = prev_ca < 3.0 * PI && cycle_angle >= 3.0 * PI;
             
             if rod_knock {
-                // Violent knock under peak combustion load, lighter knock on overlap
-                if crossed_2pi { 
-                    self.rod_knock_env[i] = 1.0 + throttle * 1.5; 
-                } else if crossed_0 { 
-                    self.rod_knock_env[i] = 0.4 + throttle * 0.5; 
-                }
+                if crossed_2pi { self.rod_knock_env[i] = 1.0 + throttle * 1.5; } 
+                else if crossed_0 { self.rod_knock_env[i] = 0.4 + throttle * 0.5; }
             }
-            
             if piston_slap {
-                // Rattles continuously on direction shift (clearance take-up)
-                if crossed_0 || crossed_pi || crossed_2pi || crossed_3pi { 
-                    self.piston_slap_env[i] = 0.6 + throttle * 0.4;
-                }
+                if crossed_0 || crossed_pi || crossed_2pi || crossed_3pi { self.piston_slap_env[i] = 0.6 + throttle * 0.4; }
             }
             
-            // Output pure excitation bursts (these get passed through the block resonators)
             total_rk_burst += self.rod_knock_env[i] * rng.gen_range(-1.0..1.0);
             total_ps_burst += self.piston_slap_env[i] * rng.gen_range(-1.0..1.0);
 
-            // --- 3. STATE UPDATES ---
+            // --- 4. STATE UPDATES ---
             self.prev_volume[i] = Some(volume);
             self.prev_cycle_angle[i] = cycle_angle;
 
             let net_pressure = self.cylinder_pressure[i] - ATMOSPHERIC_PRESSURE;
             let cylinder_pressure_force = net_pressure * self.piston_area;
             total_combustion_torque += -cylinder_pressure_force * dx_dtheta;
-            total_inertia += self.piston_mass * (dx_dtheta * dx_dtheta);
         }
 
         let friction_torque = -0.02 * self.num_cylinders as f64 * self.displacement_scale * self.angular_velocity;
-        let aero_drag = -0.0001 * self.num_cylinders as f64 * self.displacement_scale * self.angular_velocity * self.angular_velocity.abs();
 
         let rpm_error = (self.idle_rpm * 2.0 * PI / 60.0) - self.angular_velocity;
         let idle_torque = if rpm_error > 0.0 { rpm_error * 5.0 * self.num_cylinders as f64 * self.displacement_scale } else { 0.0 };
 
-        let total_torque = total_combustion_torque + friction_torque + aero_drag + idle_torque;
+        let total_torque = total_combustion_torque + friction_torque + load_drag + idle_torque;
 
         self.angular_velocity += (total_torque / total_inertia) * dt;
         if self.angular_velocity < 0.0 { self.angular_velocity = 0.0; } 
         self.crank_angle += self.angular_velocity * dt;
         if self.crank_angle > 2000.0 * PI { self.crank_angle -= 2000.0 * PI; }
 
-        (exhaust_flows, intake_flows, total_rk_burst, total_ps_burst)
+        (exhaust_flows, intake_flows, total_rk_burst, total_ps_burst, is_vtec)
     }
 }
 
 // === 2. ACOUSTIC FILTERS ===
 
-struct DamageResonator {
-    ir: Vec<f64>, history: Vec<f64>, ptr: usize,
-}
+struct DamageResonator { ir: Vec<f64>, history: Vec<f64>, ptr: usize }
 impl DamageResonator {
     fn new(sample_rate: f64, base_freq: f64, decay_speed: f64, length: usize, is_knock: bool) -> Self {
         let mut ir = vec![0.0; length];
         let mut rng = rand::thread_rng();
-        let mut lp = 0.0;
-        let mut energy = 0.0;
-        
+        let mut lp = 0.0; let mut energy = 0.0;
         for i in 0..length {
             let envelope = (-(i as f64) / decay_speed).exp();
             let t = i as f64 / sample_rate;
-            
             let wave = if is_knock {
-                (t * base_freq * 2.0 * PI).cos() +
-                (t * base_freq * 1.618 * 2.0 * PI).cos() * 0.5 +
-                (t * base_freq * 2.345 * 2.0 * PI).cos() * 0.25 +
-                rng.gen_range(-1.0..1.0) * 0.1 
+                (t * base_freq * 2.0 * PI).cos() + (t * base_freq * 1.618 * 2.0 * PI).cos() * 0.5 + rng.gen_range(-1.0..1.0) * 0.1 
             } else {
-                (t * base_freq * 2.0 * PI).cos() +
-                (t * base_freq * 1.32 * 2.0 * PI).cos() * 0.5 +
-                rng.gen_range(-1.0..1.0) * 0.8 
+                (t * base_freq * 2.0 * PI).cos() + (t * base_freq * 1.32 * 2.0 * PI).cos() * 0.5 + rng.gen_range(-1.0..1.0) * 0.8 
             };
-            
-            lp += 0.5 * (wave * envelope - lp);
-            ir[i] = lp;
-            energy += lp.abs();
+            lp += 0.5 * (wave * envelope - lp); ir[i] = lp; energy += lp.abs();
         }
-        
-        if energy > 0.0 {
-            let scale = 20.0 / energy; 
-            for val in ir.iter_mut() { *val *= scale; }
-        }
-        
+        if energy > 0.0 { let scale = 20.0 / energy; for val in ir.iter_mut() { *val *= scale; } }
         Self { ir, history: vec![0.0; length], ptr: 0 }
     }
     fn process(&mut self, input: f64) -> f64 {
         self.history[self.ptr] = input;
-        let mut sum = 0.0;
-        let len = self.ir.len();
-        for i in 0..len {
-            let buf_idx = (self.ptr + len - i) % len;
-            sum += self.history[buf_idx] * self.ir[i];
-        }
-        self.ptr = (self.ptr + 1) % len;
-        sum
+        let mut sum = 0.0; let len = self.ir.len();
+        for i in 0..len { sum += self.history[(self.ptr + len - i) % len] * self.ir[i]; }
+        self.ptr = (self.ptr + 1) % len; sum
     }
 }
 
-struct ConvolutionFilter {
-    ir: Vec<f64>, history: Vec<f64>, ptr: usize,
-}
+struct ConvolutionFilter { ir: Vec<f64>, history: Vec<f64>, ptr: usize }
 impl ConvolutionFilter {
     fn new(sample_rate: f64, resonance_freq: f64, decay_speed: f64, length: usize) -> Self {
-        let mut ir = vec![0.0; length];
-        let mut rng = rand::thread_rng();
-        let mut lp = 0.0;
+        let mut ir = vec![0.0; length]; let mut rng = rand::thread_rng(); let mut lp = 0.0;
         for i in 0..length {
             let noise = rng.gen_range(-1.0..1.0);
             let envelope = (-(i as f64) / decay_speed).exp(); 
             let resonance = (i as f64 * 2.0 * PI * resonance_freq / sample_rate).cos(); 
-            lp += 0.3 * ((noise * envelope * 0.5 + resonance * envelope * 0.5) - lp);
-            ir[i] = lp;
+            lp += 0.3 * ((noise * envelope * 0.5 + resonance * envelope * 0.5) - lp); ir[i] = lp;
         }
         Self { ir, history: vec![0.0; length], ptr: 0 }
     }
     fn process(&mut self, input: f64) -> f64 {
-        self.history[self.ptr] = input;
-        let mut sum = 0.0;
-        let len = self.ir.len();
-        for i in 0..len {
-            let buf_idx = (self.ptr + len - i) % len;
-            sum += self.history[buf_idx] * self.ir[i];
-        }
-        self.ptr = (self.ptr + 1) % len;
-        sum
+        self.history[self.ptr] = input; let mut sum = 0.0; let len = self.ir.len();
+        for i in 0..len { sum += self.history[(self.ptr + len - i) % len] * self.ir[i]; }
+        self.ptr = (self.ptr + 1) % len; sum
     }
 }
+
 struct HeaderDelay { buffer: Vec<f64>, ptr: usize }
 impl HeaderDelay {
     fn new(delay_samples: usize) -> Self { Self { buffer: vec![0.0; delay_samples.max(1)], ptr: 0 } }
-    fn process(&mut self, input: f64) -> f64 {
-        let output = self.buffer[self.ptr];
-        self.buffer[self.ptr] = input;
-        self.ptr = (self.ptr + 1) % self.buffer.len();
-        output
-    }
+    fn process(&mut self, input: f64) -> f64 { let output = self.buffer[self.ptr]; self.buffer[self.ptr] = input; self.ptr = (self.ptr + 1) % self.buffer.len(); output }
 }
 struct AutoGain { peak: f64 }
 impl AutoGain {
     fn new() -> Self { Self { peak: 1.0 } }
-    fn process(&mut self, input: f64) -> f64 {
-        let abs_i = input.abs();
-        if abs_i > self.peak { self.peak = abs_i; } else { self.peak = self.peak * 0.99995 + 1.0 * 0.00005; }
-        input / self.peak
-    }
+    fn process(&mut self, input: f64) -> f64 { let abs_i = input.abs(); if abs_i > self.peak { self.peak = abs_i; } else { self.peak = self.peak * 0.99995 + 1.0 * 0.00005; } input / self.peak }
 }
 struct DcBlocker { x_prev: f64, y_prev: f64 }
 impl DcBlocker {
     fn new() -> Self { Self { x_prev: 0.0, y_prev: 0.0 } }
-    fn process(&mut self, x: f64) -> f64 {
-        let y = x - self.x_prev + 0.995 * self.y_prev;
-        self.x_prev = x;
-        self.y_prev = y;
-        y
-    }
+    fn process(&mut self, x: f64) -> f64 { let y = x - self.x_prev + 0.995 * self.y_prev; self.x_prev = x; self.y_prev = y; y }
 }
 
 // === 3. AUDIO THREAD ===
@@ -502,15 +497,18 @@ fn run_audio_stream(state: Arc<SharedEngineState>) -> cpal::Stream {
             let throttle = f64::from_bits(state.throttle.load(Ordering::Relaxed));
             let rk_active = state.rod_knock.load(Ordering::Relaxed);
             let ps_active = state.piston_slap.load(Ordering::Relaxed);
+            let load_active = state.dyno_load.load(Ordering::Relaxed);
             
             let mut last_ex = [0.0; MAX_CYLINDERS];
             let mut last_in = [0.0; MAX_CYLINDERS];
             let mut any_limiter = false;
+            let mut current_vtec = false;
 
             for frame in data.chunks_mut(channels) {
-                let (raw_exhausts, raw_intakes, rk_burst, ps_burst) = engine.step(dt, throttle, rk_active, ps_active);
+                let (raw_exhausts, raw_intakes, rk_burst, ps_burst, is_vtec) = engine.step(dt, throttle, rk_active, ps_active, load_active);
                 
                 if engine.rev_limiter_active { any_limiter = true; }
+                current_vtec = is_vtec;
 
                 last_ex = raw_exhausts;
                 last_in = raw_intakes;
@@ -530,7 +528,8 @@ fn run_audio_stream(state: Arc<SharedEngineState>) -> cpal::Stream {
                 let ps_sound = ps_resonator.process(ps_burst);
                 
                 let drive = 1.5 + (throttle * 4.0); 
-                let intake_vol = 0.3 + (throttle * 0.7); 
+                let vtec_volume_boost = if is_vtec { 0.6 } else { 0.0 };
+                let intake_vol = 0.3 + (throttle * 0.7) + vtec_volume_boost; 
                 
                 let final_engine_mix = ex_convolved + (in_convolved * intake_vol);
                 let blocked = dc_block.process(final_engine_mix);
@@ -545,6 +544,7 @@ fn run_audio_stream(state: Arc<SharedEngineState>) -> cpal::Stream {
 
             state.rpm.store((engine.angular_velocity * (60.0 / (2.0 * PI))).to_bits(), Ordering::Relaxed);
             state.limiter_active.store(any_limiter, Ordering::Relaxed);
+            state.vtec_active.store(current_vtec, Ordering::Relaxed);
 
             for i in 0..profile.cylinders {
                 state.pressures[i].store(engine.cylinder_pressure[i].to_bits(), Ordering::Relaxed);
@@ -582,6 +582,10 @@ fn main() {
                 if key.kind == KeyEventKind::Press {
                     match key.code {
                         KeyCode::Char('w') | KeyCode::Char('W') => target_throttle = 1.0,
+                        KeyCode::Char('l') | KeyCode::Char('L') => {
+                            let current = state.dyno_load.load(Ordering::Relaxed);
+                            state.dyno_load.store(!current, Ordering::Relaxed);
+                        }
                         KeyCode::Char('r') | KeyCode::Char('R') => {
                             let current = state.rod_knock.load(Ordering::Relaxed);
                             state.rod_knock.store(!current, Ordering::Relaxed);
@@ -626,17 +630,29 @@ fn main() {
         let current_disp = f64::from_bits(state.displacement.load(Ordering::Relaxed));
 
         execute!(stdout, cursor::MoveTo(0, 0)).unwrap();
-        write!(stdout, "🏎️   THE ANGE SYNTHESIZER (N/A EDITION) 🏎️\r\n").unwrap();
-        write!(stdout, "--- Realtime Aerodynamics + Audio Convolution ---\r\n\n").unwrap();
+        write!(stdout, "🏎️   THE ANGE SYNTHESIZER (HYBRID KINEMATIC SIM) 🏎️\r\n").unwrap();
+        write!(stdout, "--- Pristine Audio + Drivetrain Load & Spark Cuts ---\r\n\n").unwrap();
         write!(stdout, "[ W ]          : Rev Throttle\r\n").unwrap();
         write!(stdout, "[ Up/Down ]    : Profile       ({}/{}) {}\r\n", p_idx + 1, PROFILES.len(), profile.name).unwrap();
         write!(stdout, "[ Left/Right ] : Displacement  ({:.2}x)   \r\n", current_disp).unwrap();
         
+        let load_status = if state.dyno_load.load(Ordering::Relaxed) { "ON (Slow Pull)" } else { "OFF (Neutral) " };
         let rk_status = if state.rod_knock.load(Ordering::Relaxed) { "ON " } else { "OFF" };
         let ps_status = if state.piston_slap.load(Ordering::Relaxed) { "ON " } else { "OFF" };
+        
+        write!(stdout, "[ L ]          : Drivetrain Load     [{}]\r\n", load_status).unwrap();
         write!(stdout, "[ R ]          : Toggle Rod Knock    [{}]\r\n", rk_status).unwrap();
         write!(stdout, "[ P ]          : Toggle Piston Slap  [{}]\r\n", ps_status).unwrap();
         write!(stdout, "[ Q / ESC ]    : Quit\r\n\n").unwrap();
+
+        let vtec_str = if profile.vtec_rpm > 15000.0 {
+            "N/A".to_string()
+        } else if state.vtec_active.load(Ordering::Relaxed) {
+            "██ ACTIVE ██".to_string() 
+        } else {
+            "STANDBY".to_string()
+        };
+        write!(stdout, "VTEC Status:  [{}]\r\n\n", vtec_str).unwrap();
 
         let rev_lim = profile.rev_limit;
         let rpm_bar_len = ((rpm / rev_lim) * 40.0).clamp(0.0, 40.0) as usize;
@@ -644,7 +660,7 @@ fn main() {
         
         let limiter_on = state.limiter_active.load(Ordering::Relaxed);
         if limiter_on {
-            write!(stdout, "RPM:      {:05.0} [|||||||||||||||| LIMITER |||||||||||||||]\r\n", rpm).unwrap();
+            write!(stdout, "RPM:      {:05.0} [|||||||||||| SPARK CUT ||||||||||||]\r\n", rpm).unwrap();
         } else {
             write!(stdout, "RPM:      {:05.0} [{}]\r\n", rpm, rpm_bar).unwrap();
         }
@@ -653,11 +669,11 @@ fn main() {
         let t_bar = "█".repeat(t_bar_len) + &"-".repeat(40_usize.saturating_sub(t_bar_len));
         write!(stdout, "Throttle: {:03.0}% [{}]\r\n", actual_throttle * 100.0, t_bar).unwrap();
 
-        write!(stdout, "\r\n--- Realtime Cylinder Telemetry ---\r\n").unwrap();
+        write!(stdout, "\r\n--- Real-Time Cylinder Telemetry ---\r\n").unwrap();
         for i in 0..num_cyls {
             let p = f64::from_bits(state.pressures[i].load(Ordering::Relaxed));
             let p_kpa = p / 1000.0;
-            write!(stdout, "Cyl {:02} | Press: {:7.1} kPa\r\n", i + 1, p_kpa).unwrap();
+            write!(stdout, "Cyl {:02} | Press: {:7.1} kPa \r\n", i + 1, p_kpa).unwrap();
         }
         write!(stdout, "{}", terminal::Clear(ClearType::FromCursorDown)).unwrap();
 
