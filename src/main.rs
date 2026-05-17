@@ -102,6 +102,7 @@ pub struct SharedEngineState {
     pub intake_flows: [AtomicU64; MAX_CYLINDERS],
     pub rod_knock: AtomicBool,
     pub piston_slap: AtomicBool,
+    pub limiter_active: AtomicBool,
 }
 
 impl SharedEngineState {
@@ -116,6 +117,7 @@ impl SharedEngineState {
             intake_flows: std::array::from_fn(|_| AtomicU64::new(0f64.to_bits())),
             rod_knock: AtomicBool::new(false),
             piston_slap: AtomicBool::new(false),
+            limiter_active: AtomicBool::new(false),
         }
     }
 }
@@ -135,6 +137,8 @@ pub struct EngineSolver {
     pub profile_idx: usize,
     pub rev_limit: f64,
     pub idle_rpm: f64,
+    
+    pub rev_limiter_active: bool, // Track the hysteresis state
 
     crank_radius: f64,
     rod_length: f64,
@@ -161,7 +165,7 @@ impl EngineSolver {
             base_crank_radius: 0.04, base_rod_length: 0.13, base_crank_inertia: 0.15,
             base_piston_mass: 0.4, base_bore: 0.08, compression_ratio: 9.0,
             num_cylinders: 8, displacement_scale: 1.0, profile_idx: 999,
-            rev_limit: 8000.0, idle_rpm: 1000.0,
+            rev_limit: 8000.0, idle_rpm: 1000.0, rev_limiter_active: false,
             crank_radius: 0.0, rod_length: 0.0, piston_mass: 0.0, piston_area: 0.0, clearance_volume: 0.0,
 
             cylinder_pressure: [ATMOSPHERIC_PRESSURE; MAX_CYLINDERS],
@@ -180,6 +184,7 @@ impl EngineSolver {
         self.displacement_scale = scale;
         self.rev_limit = profile.rev_limit;
         self.idle_rpm = profile.idle_rpm;
+        self.rev_limiter_active = false;
 
         let s = scale.cbrt(); 
         self.crank_radius = self.base_crank_radius * s;
@@ -214,6 +219,15 @@ impl EngineSolver {
         let mut rng = rand::thread_rng();
 
         let rev_limit_rads = self.rev_limit * (2.0 * PI / 60.0);
+        // Hysteresis calculation: Must drop 250 RPM to re-engage combustion
+        let bounce_drop_rads = 250.0 * (2.0 * PI / 60.0);
+        
+        if self.angular_velocity > rev_limit_rads {
+            self.rev_limiter_active = true;
+        } else if self.angular_velocity < (rev_limit_rads - bounce_drop_rads) {
+            self.rev_limiter_active = false;
+        }
+
         let intake_manifold_pressure = ATMOSPHERIC_PRESSURE * (0.2 + throttle * 0.8);
         
         let intake_flow_rate = 1.0 - (-dt / 0.002).exp();
@@ -263,7 +277,8 @@ impl EngineSolver {
             
             // Combustion pulse
             if prev_ca < 2.0 * PI && cycle_angle >= 2.0 * PI {
-                if self.angular_velocity < rev_limit_rads {
+                // Now respects the bouncing hysteresis loop instead of a hard cut!
+                if !self.rev_limiter_active {
                     let jitter = rng.gen_range(0.95..1.05); 
                     let combustion_multiplier = 1.0 + (20.0 * (0.1 + throttle * 0.9) * jitter);
                     self.cylinder_pressure[i] *= combustion_multiplier;
@@ -330,7 +345,6 @@ impl EngineSolver {
 
 // === 2. ACOUSTIC FILTERS ===
 
-// Modulates a noise burst into a specific metallic resonance
 struct DamageResonator {
     ir: Vec<f64>, history: Vec<f64>, ptr: usize,
 }
@@ -346,13 +360,11 @@ impl DamageResonator {
             let t = i as f64 / sample_rate;
             
             let wave = if is_knock {
-                // Heavy, clunky metal block harmonics
                 (t * base_freq * 2.0 * PI).cos() +
                 (t * base_freq * 1.618 * 2.0 * PI).cos() * 0.5 +
                 (t * base_freq * 2.345 * 2.0 * PI).cos() * 0.25 +
                 rng.gen_range(-1.0..1.0) * 0.1 
             } else {
-                // Hollow, tinny aluminum clatter
                 (t * base_freq * 2.0 * PI).cos() +
                 (t * base_freq * 1.32 * 2.0 * PI).cos() * 0.5 +
                 rng.gen_range(-1.0..1.0) * 0.8 
@@ -363,7 +375,6 @@ impl DamageResonator {
             energy += lp.abs();
         }
         
-        // Normalize IR to output a stable volume level
         if energy > 0.0 {
             let scale = 20.0 / energy; 
             for val in ir.iter_mut() { *val *= scale; }
@@ -458,7 +469,6 @@ fn run_audio_stream(state: Arc<SharedEngineState>) -> cpal::Stream {
     let mut exhaust_pipe = ConvolutionFilter::new(sample_rate, 150.0, 120.0, 1024);
     let mut intake_box = ConvolutionFilter::new(sample_rate, 240.0, 15.0, 512);
     
-    // Damage resonators (Deep knock & tinny clack)
     let mut rk_resonator = DamageResonator::new(sample_rate, 450.0, 1500.0, 2048, true);
     let mut ps_resonator = DamageResonator::new(sample_rate, 1800.0, 400.0, 1024, false);
     
@@ -495,10 +505,13 @@ fn run_audio_stream(state: Arc<SharedEngineState>) -> cpal::Stream {
             
             let mut last_ex = [0.0; MAX_CYLINDERS];
             let mut last_in = [0.0; MAX_CYLINDERS];
+            let mut any_limiter = false;
 
             for frame in data.chunks_mut(channels) {
                 let (raw_exhausts, raw_intakes, rk_burst, ps_burst) = engine.step(dt, throttle, rk_active, ps_active);
                 
+                if engine.rev_limiter_active { any_limiter = true; }
+
                 last_ex = raw_exhausts;
                 last_in = raw_intakes;
 
@@ -513,7 +526,6 @@ fn run_audio_stream(state: Arc<SharedEngineState>) -> cpal::Stream {
                 let ex_convolved = exhaust_pipe.process(mixed_exhaust);
                 let in_convolved = intake_box.process(mixed_intake);
                 
-                // Excite the metal acoustic resonators
                 let rk_sound = rk_resonator.process(rk_burst);
                 let ps_sound = ps_resonator.process(ps_burst);
                 
@@ -523,13 +535,8 @@ fn run_audio_stream(state: Arc<SharedEngineState>) -> cpal::Stream {
                 let final_engine_mix = ex_convolved + (in_convolved * intake_vol);
                 let blocked = dc_block.process(final_engine_mix);
                 
-                // Distort ONLY the engine cycle block, not the impact knocks
                 let overdriven = (blocked * drive).tanh() / drive.tanh();
-                
-                // Mix in the pristine metallic sounds on top of the compressed engine noise
                 let final_mix = (overdriven * 0.7) + (rk_sound * 1.5) + (ps_sound * 0.8);
-                
-                // AGC handles dynamic limiting (which mimics a real microphone heavily ducking on loud rod-knock impacts)
                 let normalized = agc.process(final_mix);
                 
                 let sample_f32 = (normalized * 0.8).clamp(-1.0, 1.0) as f32;
@@ -537,6 +544,7 @@ fn run_audio_stream(state: Arc<SharedEngineState>) -> cpal::Stream {
             }
 
             state.rpm.store((engine.angular_velocity * (60.0 / (2.0 * PI))).to_bits(), Ordering::Relaxed);
+            state.limiter_active.store(any_limiter, Ordering::Relaxed);
 
             for i in 0..profile.cylinders {
                 state.pressures[i].store(engine.cylinder_pressure[i].to_bits(), Ordering::Relaxed);
@@ -571,7 +579,6 @@ fn main() {
 
         if event::poll(Duration::from_millis(5)).unwrap() {
             if let Event::Key(key) = event::read().unwrap() {
-                // FIXED: Prevent "goes up in twos" by ignoring KeyEventKind::Release
                 if key.kind == KeyEventKind::Press {
                     match key.code {
                         KeyCode::Char('w') | KeyCode::Char('W') => target_throttle = 1.0,
@@ -635,7 +642,8 @@ fn main() {
         let rpm_bar_len = ((rpm / rev_lim) * 40.0).clamp(0.0, 40.0) as usize;
         let rpm_bar = "█".repeat(rpm_bar_len) + &"-".repeat(40_usize.saturating_sub(rpm_bar_len));
         
-        if rpm > rev_lim - 50.0 {
+        let limiter_on = state.limiter_active.load(Ordering::Relaxed);
+        if limiter_on {
             write!(stdout, "RPM:      {:05.0} [|||||||||||||||| LIMITER |||||||||||||||]\r\n", rpm).unwrap();
         } else {
             write!(stdout, "RPM:      {:05.0} [{}]\r\n", rpm, rpm_bar).unwrap();
